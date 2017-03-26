@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 import socket
 import sys
@@ -10,7 +11,7 @@ from utils import icmp_requests as requests
 import struct
 
 protocol_name = "icmp"
-socket.getprotobyname(protocol_name)
+
 
 class Packet:
     def __init__(self, version="bbHHh", m_type=requests['echo request'], code=0,
@@ -50,13 +51,13 @@ class Packet:
         answer = answer >> 8 | (answer << 8 & 0xff00)
         return answer
 
-    def bin_packet(self, time_id):
+    def bin_packet(self):
         raw_header = self._bin_packet()
         word = struct.pack('d', time.time())  # 8 byte
-        
+
         pack_checksum = self.check_sum_forming(raw_header + word)  # 8 byte
 
-        packet = Packet(checksum=socket.htons(pack_checksum), id_f=time_id)
+        packet = Packet(checksum=socket.htons(pack_checksum))
         return packet._bin_packet()
 
 
@@ -69,7 +70,9 @@ def get_arg_parser():
 
 
 def prepare_socket(ttl):
-    query_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW )
+    query_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,
+                                 socket.getprotobyname(protocol_name))
+
     query_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
 
     # query_socket.settimeout() for futher progress
@@ -82,7 +85,7 @@ def traceroute(dest, max_hops):
         print(end_point)
         for step in range(1, max_hops):
             sending_socket = prepare_socket(step)
-            packet = Packet().bin_packet(int(id(step) * random.random() % 65535))
+            packet = Packet(id_f=os.getpid() & 0xFFFF).bin_packet()
             # sending our packet
             sending_socket.sendto(packet, (end_point, 33434))
             info = receive_packet_timeout(sending_socket, timeout=2)
