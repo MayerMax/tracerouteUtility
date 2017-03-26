@@ -14,9 +14,8 @@ protocol_name = "icmp"
 
 
 class Packet:
-    def __init__(self, version="bbHHh", m_type=requests['echo request'], code=0,
+    def __init__(self, m_type=requests['echo request'], code=0,
                  checksum=0, id_f=0, sequence=1):
-        self.version = version
         self.type = m_type
         self.code = code
         self.checksum = checksum
@@ -26,7 +25,7 @@ class Packet:
     def _bin_packet(self):
         """forming a raw packet with 0 checksum,
         just for further computation of checksum based on prepared binary data"""
-        return struct.pack(self.version, self.type, self.code,
+        return struct.pack('bbHHh', self.type, self.code,
                            self.checksum, self.id, self.sequence)
 
     @classmethod
@@ -51,14 +50,20 @@ class Packet:
         answer = answer >> 8 | (answer << 8 & 0xff00)
         return answer
 
-    def bin_packet(self):
+    def form_packet(self, s_id):
         raw_header = self._bin_packet()
-        word = struct.pack('d', time.time())  # 8 byte
+        data = []
+        value = 0x42
+        for i in range(55):
+            data += [value]
+        data = bytes(data)
 
-        pack_checksum = self.check_sum_forming(raw_header + word)  # 8 byte
+        check_sum = self.check_sum_forming(raw_header + data)
+        check_sum = socket.htons(check_sum)
 
-        packet = Packet(checksum=socket.htons(pack_checksum))
-        return packet._bin_packet()
+        header = Packet(checksum=check_sum, id_f=s_id)._bin_packet()
+        send_packet = header + data
+        return send_packet
 
 
 def get_arg_parser():
@@ -75,21 +80,26 @@ def prepare_socket(ttl):
 
     query_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
 
-    # query_socket.settimeout() for futher progress
+    # query_socket.settimeout() for further progress
     return query_socket
 
 
 def traceroute(dest, max_hops):
     try:
         end_point = socket.gethostbyname(dest)
-        print(end_point)
-        for step in range(1, max_hops):
+        step = 1
+        while step < max_hops:
+
             sending_socket = prepare_socket(step)
-            packet = Packet(id_f=os.getpid() & 0xFFFF).bin_packet()
+            packet = Packet(id_f=os.getpid() & 0xFFFF).form_packet(os.getpid() & 0xFFFF)
+
             # sending our packet
-            sending_socket.sendto(packet, (end_point, 33434))
-            info = receive_packet_timeout(sending_socket, timeout=2)
+            sending_socket.sendto(packet, (end_point, 1))
+            info = receive_packet_timeout(sending_socket, timeout=1)
+
             print(info)
+            step += 1
+            sending_socket.close()
 
     except socket.gaierror as s_error:
         print(s_error.args)
@@ -98,7 +108,7 @@ def traceroute(dest, max_hops):
 def receive_packet_timeout(sock, timeout=1):
     start_time = time.time()
     while True:
-        reading, _, _ = select.select([sock], [], [], timeout)
+        reading, _, _ = select.select([sock], [], [], 4)
         if len(reading) == 0:
             return
         icmp_message, addr = sock.recvfrom(1024)
@@ -113,9 +123,5 @@ def receive_packet_timeout(sock, timeout=1):
 
 if __name__ == "__main__":
     # arg_parser = get_arg_parser().parse_args()
-    traceroute("google.com", 30)
-    # traceroute(arg_parser.parse_args())
-    # print(socket.gethostbyname("dubrovin"))
-    # print(socket.gethostbyname_ex("yandex.ru"))
-    # print(socket.gethostbyaddr('yandex.ru'))
-    # print(socket.getprotobyname(protocol_name))
+    traceroute("google.com", 20)
+
