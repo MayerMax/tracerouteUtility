@@ -1,7 +1,10 @@
 import argparse
+import random
 import socket
 import sys
 import time
+
+import select
 
 from utils import icmp_requests as requests
 import struct
@@ -60,16 +63,45 @@ def get_arg_parser():
     parser.add_argument("-t", "--ttl", help="custom ttl bound", default=25, type=int)
 
     return parser
+def prepare_socket(ttl):
+    query_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,
+                                 socket.getprotobyname(protocol_name))
+    query_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
 
-def traceroute(parser):
+    #query_socket.settimeout() for futher progress
+    return query_socket
+
+
+def traceroute(dest, max_hops):
     try:
-        end_point = socket.gethostbyname(parser.destination)
+        end_point = socket.gethostbyname(dest)
+
+        for step in range(1, max_hops):
+            sending_socket = prepare_socket(step)
+            packet = Packet().bin_packet(int(id(step)*random.random()%65535))
+            # sending our packet
+            sending_socket.sendto(packet, address=(end_point, 1))
+
+
     except socket.gaierror as s_error:
         print(s_error.args)
-        pass
+
+def receive_packet_timeout(sock, timeout=1):
+    start_time = time.time()
+    while True:
+        reading, _, _ = select.select([sock], [], [], timeout)
+        if len(reading) == 0:
+            return
+        icmp_message, addr = sock.recvfrom(1024)
+        icmp_header = icmp_message[20:28]
+
+        icmpType, code, checksum, packetID, sequence = struct.unpack('bbHHh', icmp_header)
+
+
+
 if __name__ == "__main__":
-    arg_parser = get_arg_parser().parse_args()
-    print(arg_parser)
+    #arg_parser = get_arg_parser().parse_args()
+    traceroute("yandex.ru")
     # traceroute(arg_parser.parse_args())
     # print(socket.gethostbyname("dubrovin"))
     # print(socket.gethostbyname_ex("yandex.ru"))
