@@ -1,6 +1,7 @@
 import select
 import socket
 import re
+from collections import OrderedDict
 
 # all queries stars with this server
 DEFAULT_WHOIS_INFROMER = 'whois.arin.net'
@@ -16,9 +17,15 @@ WHOIS_PORT = 43
 
 BREAK = "\r\n"
 
-regions_dict = dict(RIPE="whois.ripe.net", ARIN="whois.arin.net",
-                    LACNIC="whois.lacnic.net", APNIC="whois.apnic.net",
-                    AFRINIC="whois.afrinic.net")
+regions_dict = OrderedDict(
+    IANA='whois.iana.org',
+    RIPE="whois.ripe.net",
+    APNIC="whois.apnic.net",
+    AFRINIC="whois.afrinic.net",
+    LACNIC="whois.lacnic.net",
+)
+
+reserved_words = ['IANA-NETBLOCK-8', 'NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK', 'IANA1', 'EU']
 
 
 def receive_info_from_socket(sock):
@@ -94,18 +101,30 @@ def throw_info_back(word_descr, reply_dict, target):
     return reply_dict
 
 
+def filter_result(collected_reply):
+    desired_list = ['country', 'netname', 'aut-num', 'origin']
+    sum_res = dict()
+    for reply in collected_reply:
+        for key in reply:
+            if key in desired_list and reply[key] not in reserved_words and \
+                            'IANA' not in reply[key]:
+                sum_res[key] = reply[key]
+    return sum_res
+
+
 def polling_others(word_descr, reply_dict, target):
-    for regisry in regions_dict:
-        if regisry != 'ARIN':
-            expected_res = base_parsing(
-                pattern_function
-                    (
-                    receive_who_is
-                    (target, regions_dict[regisry])
-                )
+    polling_list = []
+    for registrar in regions_dict:
+        expected_res = base_parsing(
+            pattern_function(
+                receive_who_is
+                (target, regions_dict[registrar])
             )
-            if len(expected_res.keys()) != 0:
-                return expected_res
+        )
+        if len(expected_res.keys()) != 0:
+            polling_list.append(expected_res)
+    if len(polling_list) > 0:
+        return filter_result(polling_list)
     return dict()
 
 
@@ -114,10 +133,12 @@ def base_parsing(zone_info, target=None):
     info = dict()
     if len(zone_info.keys()) == 0 and target:
         return polling_others(None, None, target)
-    list_of_interest = ['country', 'origin', 'netname', 'aut-num', 'nic-hdl']
+    list_of_interest = ['country', 'origin', 'netname', 'aut-num', 'nic-hdl',
+                        "OrgId", 'OriginAS', "NetName"]
     for q in list_of_interest:
-        if q in zone_info.keys():
+        if q in zone_info.keys() and zone_info[q] != 'EU':
             info[q] = zone_info[q]
+
     return info
 
 
@@ -146,4 +167,4 @@ def algorithm_on_searching(target):
 # japan gov -202.32.211.142
 # nigeria gov - 41.222.211.231
 # france gov - 185.11.125.117
-print(algorithm_on_searching("202.32.211.142"))
+print(algorithm_on_searching("77.88.55.70"))
