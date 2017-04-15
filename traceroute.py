@@ -6,6 +6,7 @@ from utils import icmp_requests as requests, answer_formatting as answer_format
 from utils import ip_addr_is_private
 from whoisUtility import algorithm_on_searching
 from struct import unpack, pack
+import sys
 
 protocol_name = "icmp"
 ASTERISK = "*"
@@ -84,6 +85,8 @@ def traceroute(dest, max_hops):
     try:
         end_point = socket.gethostbyname(dest)
         step = 1
+        print(step, socket.gethostbyname("localhost"))
+        print('local\r\n')
         while step < max_hops:
 
             sending_socket = prepare_socket(step)
@@ -98,7 +101,7 @@ def traceroute(dest, max_hops):
                 print(info)
             elif not current_ip:
                 print(step, ASTERISK)
-
+                print('\r\n')
             if is_reached:
                 print('traceroute is completed')
                 sending_socket.close()
@@ -125,6 +128,26 @@ def receive_packet_timeout(sock, delay=0.5):
     return None, False
 
 
+def host_value(host):
+    try:
+        val = socket.gethostbyname(host)
+        return val
+    except socket.gaierror:
+        try:
+            val = socket.gethostbyaddr(host)
+            return val
+        except socket.gaierror:
+            print("{} is invalid".format(str(host)))
+            sys.exit()
+
 if __name__ == "__main__":
-    # arg_parser = get_arg_parser().parse_args()
-    traceroute("41.222.211.231", 20)
+    try:
+        args = get_arg_parser().parse_args()
+        host = host_value(args.destination)
+        traceroute(host, args.ttl)
+    except (OSError, socket.error) as e:
+        if isinstance(e, OSError):
+            print('Seem like not enough administrative permissions, below the error')
+            print(e)
+        else:
+            print('Some troubleshooting with network')

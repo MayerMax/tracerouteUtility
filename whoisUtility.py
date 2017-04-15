@@ -166,17 +166,3 @@ def algorithm_on_searching(target):
     return state_dict[state](state, info, target)
 
 
-# yandex - 77.88.55.70
-# google com - 209.85.233.100
-# facebook - 31.13.92.36
-# print(socket.gethostbyname("gouvernement.fr"))
-# brazil gov - 189.9.39.243
-# japan gov -202.32.211.142
-# nigeria gov - 41.222.211.231
-# france gov - 185.11.125.117
-# res = algorithm_on_searching("209.85.233.100")
-#
-# from utils import answer_formatting
-#
-# string = answer_formatting(res)
-# print(string)
