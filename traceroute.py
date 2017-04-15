@@ -1,17 +1,14 @@
 import argparse
 import os
-import random
 import socket
-import sys
-import time
-
 import select
-
-from utils import icmp_requests as requests
-import struct
+from utils import icmp_requests as requests, answer_formatting as answer_format
+from utils import ip_addr_is_private
+from whoisUtility import algorithm_on_searching
+from struct import unpack, pack
 
 protocol_name = "icmp"
-
+ASTERISK = "*"
 
 class Packet:
     def __init__(self, m_type=requests['echo request'], code=0,
@@ -25,8 +22,8 @@ class Packet:
     def _bin_packet(self):
         """forming a raw packet with 0 checksum,
         just for further computation of checksum based on prepared binary data"""
-        return struct.pack('bbHHh', self.type, self.code,
-                           self.checksum, self.id, self.sequence)
+        return pack('bbHHh', self.type, self.code,
+                    self.checksum, self.id, self.sequence)
 
     @classmethod
     def check_sum_forming(cls, word):
@@ -68,7 +65,7 @@ class Packet:
 
 def get_arg_parser():
     parser = argparse.ArgumentParser(description="traceroute utility")
-    parser.add_argument("destination", help="routing address")
+    parser.add_argument("destination", help="routing address, numeric value or dns name")
     parser.add_argument("-t", "--ttl", help="custom ttl bound", default=25, type=int)
 
     return parser
@@ -80,7 +77,6 @@ def prepare_socket(ttl):
 
     query_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
 
-    # query_socket.settimeout() for further progress
     return query_socket
 
 
@@ -95,9 +91,18 @@ def traceroute(dest, max_hops):
 
             # sending our packet
             sending_socket.sendto(packet, (end_point, 1))
-            info = receive_packet_timeout(sending_socket, timeout=1)
+            current_ip, is_reached = receive_packet_timeout(sending_socket)
+            if current_ip and not ip_addr_is_private(current_ip[0]):
+                info = answer_format(algorithm_on_searching(current_ip[0]))
+                print(step, current_ip[0])
+                print(info)
+            elif not current_ip:
+                print(step, ASTERISK)
 
-            print(info)
+            if is_reached:
+                print('traceroute is completed')
+                sending_socket.close()
+                break
             step += 1
             sending_socket.close()
 
@@ -105,23 +110,21 @@ def traceroute(dest, max_hops):
         print(s_error.args)
 
 
-def receive_packet_timeout(sock, timeout=1):
-    start_time = time.time()
-    while True:
-        reading, _, _ = select.select([sock], [], [], 4)
-        if len(reading) == 0:
-            return
-        icmp_message, addr = sock.recvfrom(1024)
-        icmp_header = icmp_message[20:28]
+def receive_packet_timeout(sock, delay=0.5):
+    reading, _, _ = select.select([sock], [], [], delay)
+    if len(reading) == 0:
+        return None, False
+    icmp_message, addr = sock.recvfrom(1024)
+    icmp_header = icmp_message[20:28]
 
-        icmpType, code, checksum, packetID, sequence = struct.unpack('bbHHh', icmp_header)
-        if icmpType == requests['ttl_expired'] and code == 0:
-            return addr, None
-        if icmpType == requests['echo reply'] and code == 0:
-            return addr, 1
+    icmpType, code, checksum, packetID, sequence = unpack('bbHHh', icmp_header)
+    if icmpType == requests['ttl_expired'] and code == 0:
+        return addr, False
+    if icmpType == requests['echo reply'] and code == 0:
+        return addr, True
+    return None, False
 
 
 if __name__ == "__main__":
     # arg_parser = get_arg_parser().parse_args()
-    traceroute("google.com", 20)
-
+    traceroute("41.222.211.231", 20)

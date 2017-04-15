@@ -25,7 +25,8 @@ regions_dict = OrderedDict(
     LACNIC="whois.lacnic.net",
 )
 
-reserved_words = ['IANA-NETBLOCK-8', 'NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK', 'IANA1', 'EU']
+reserved_words = ['IANA-NETBLOCK-8', 'NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK', 'IANA1',
+                  'EU', 'EU ']
 
 
 def receive_info_from_socket(sock):
@@ -111,6 +112,11 @@ def filter_result(collected_reply):
                 sum_res[key] = reply[key]
     return sum_res
 
+def pure_answer(query):
+    for key in query:
+        if query[key] in reserved_words:
+            return False
+    return True
 
 def polling_others(word_descr, reply_dict, target):
     polling_list = []
@@ -122,6 +128,8 @@ def polling_others(word_descr, reply_dict, target):
             )
         )
         if len(expected_res.keys()) != 0:
+            if pure_answer(expected_res):
+                return expected_res
             polling_list.append(expected_res)
     if len(polling_list) > 0:
         return filter_result(polling_list)
@@ -155,7 +163,6 @@ def algorithm_on_searching(target):
         receive_who_is(target,
                        DEFAULT_WHOIS_INFROMER),
         to_arin=True)
-    print(state)
     return state_dict[state](state, info, target)
 
 
@@ -167,4 +174,9 @@ def algorithm_on_searching(target):
 # japan gov -202.32.211.142
 # nigeria gov - 41.222.211.231
 # france gov - 185.11.125.117
-print(algorithm_on_searching("77.88.55.70"))
+# res = algorithm_on_searching("209.85.233.100")
+#
+# from utils import answer_formatting
+#
+# string = answer_formatting(res)
+# print(string)
