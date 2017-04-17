@@ -67,7 +67,7 @@ class Packet:
 def get_arg_parser():
     parser = argparse.ArgumentParser(description="traceroute utility")
     parser.add_argument("destination", help="routing address, numeric value or dns name")
-    parser.add_argument("-t", "--ttl", help="custom ttl bound", default=25, type=int)
+    parser.add_argument("-t", "--ttl", help="custom ttl bound", default=20, type=int)
 
     return parser
 
@@ -102,7 +102,7 @@ def traceroute(dest, max_hops):
             elif not current_ip:
                 print(step, ASTERISK)
                 print('\r\n')
-            if is_reached:
+            if is_reached or (current_ip is not  None and current_ip[0] == dest):
                 print('traceroute is completed')
                 sending_socket.close()
                 break

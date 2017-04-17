@@ -25,7 +25,7 @@ regions_dict = OrderedDict(
     LACNIC="whois.lacnic.net",
 )
 
-reserved_words = ['IANA-NETBLOCK-8', 'NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK', 'IANA1',
+reserved_words = ['BLOCK', 'NON-RIPE-NCC-MANAGED-ADDRESS-BLOCK', 'IANA1',
                   'EU', 'EU ']
 
 
@@ -106,17 +106,22 @@ def filter_result(collected_reply):
     desired_list = ['country', 'netname', 'aut-num', 'origin']
     sum_res = dict()
     for reply in collected_reply:
+        if not pure_answer(reply):
+            continue
         for key in reply:
-            if key in desired_list and reply[key] not in reserved_words and \
-                            'IANA' not in reply[key]:
+            if key in desired_list:
                 sum_res[key] = reply[key]
+
     return sum_res
+
 
 def pure_answer(query):
     for key in query:
-        if query[key] in reserved_words:
-            return False
+        for reserved in reserved_words:
+            if reserved in query[key]:
+                return False
     return True
+
 
 def polling_others(word_descr, reply_dict, target):
     polling_list = []
@@ -163,6 +168,8 @@ def algorithm_on_searching(target):
         receive_who_is(target,
                        DEFAULT_WHOIS_INFROMER),
         to_arin=True)
+
     return state_dict[state](state, info, target)
 
 
+# print(algorithm_on_searching('63.158.243.46'))
